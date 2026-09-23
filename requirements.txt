@@ -1,0 +1,7 @@
+# Initial dependency ranges; lock versions after integration validation.
+streamlit>=1.40,<2
+pydantic>=2.9,<3
+pypdf>=5,<7
+python-dotenv>=1,<2
+openai>=1.50,<3
+pytest>=8,<10

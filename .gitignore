@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+build/
+dist/
+*.egg-info/
+# Credentials and local configuration
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+*.pem
+*.key
+# Local documents and generated data
+data/*
+!data/samples/
+data/samples/*
+!data/samples/README.md
+*.db
+*.sqlite*
+*.log
+# OS/editor
+.DS_Store
+.idea/
+.vscode/
