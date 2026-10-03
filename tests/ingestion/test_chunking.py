@@ -48,6 +48,19 @@ def test_text_larger_than_limit_is_split_by_characters() -> None:
     assert [chunk.text for chunk in chunks] == ["ABCD", "EFGH", "IJ"]
 
 
+def test_chunking_keeps_a_line_together_when_it_crosses_the_limit() -> None:
+    clause = "Cobertura B - Reembolso a sociedade por valores pagos em nome do administrador."
+    text = "x" * 970 + "\n" + clause + "\nMore policy text"
+
+    chunks = Chunker(max_chunk_size=1000).chunk_page(DOCUMENT_ID, make_page(text))
+
+    assert chunks[0].text.endswith("\n")
+    assert chunks[1].text.startswith(clause)
+    assert "Reembolso" in chunks[1].text
+    assert "Reembolso" not in chunks[0].text
+    assert "".join(chunk.text for chunk in chunks) == text
+
+
 def test_concatenation_preserves_page_text_exactly() -> None:
     page = make_page("  Texto  com\twhitespace\n e Unicode: áç R$  ")
     chunks = Chunker(max_chunk_size=7).chunk_page(DOCUMENT_ID, page)
