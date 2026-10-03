@@ -1,4 +1,4 @@
-"""Deterministic page-level text chunking."""
+"""Deterministic page-level text chunking that avoids splitting source lines."""
 
 from uuid import UUID
 
@@ -6,7 +6,7 @@ from .models import Chunk, Page
 
 
 class Chunker:
-    """Split page text into fixed-size, non-overlapping character chunks."""
+    """Split page text into non-overlapping chunks, preferring line/word boundaries."""
 
     DEFAULT_MAX_CHUNK_SIZE = 1000
 
@@ -29,19 +29,29 @@ class Chunker:
             return []
 
         chunks: list[Chunk] = []
-        for chunk_index, start in enumerate(
-            range(0, len(page.text), self.max_chunk_size)
-        ):
-            chunk_text = page.text[start : start + self.max_chunk_size]
+        start = 0
+        while start < len(page.text):
+            end = min(start + self.max_chunk_size, len(page.text))
+            if end < len(page.text):
+                window = page.text[start:end]
+                newline = window.rfind("\n")
+                whitespace = max(window.rfind(" "), window.rfind("\t"), window.rfind("\r"))
+                if newline >= self.max_chunk_size // 2:
+                    end = start + newline + 1
+                elif whitespace >= self.max_chunk_size // 2:
+                    end = start + whitespace + 1
+
+            chunk_text = page.text[start:end]
             chunks.append(
                 Chunk(
                     chunk_id=(
-                        f"{document_id}:page-{page.page_number}:chunk-{chunk_index}"
+                        f"{document_id}:page-{page.page_number}:chunk-{len(chunks)}"
                     ),
                     document_id=str(document_id),
                     page_number=page.page_number,
-                    chunk_index=chunk_index,
+                    chunk_index=len(chunks),
                     text=chunk_text,
                 )
             )
+            start = end
         return chunks

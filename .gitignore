@@ -21,6 +21,9 @@ data/*
 !data/samples/
 data/samples/*
 !data/samples/README.md
+!data/samples/*.pdf
+# D&O materials supplied for analysis must remain local and untracked.
+data/do/
 *.db
 *.sqlite*
 *.log

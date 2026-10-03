@@ -1,6 +1,6 @@
-# Arquitetura do pipeline documental
+# Arquitetura de ingestão, extração e comparação
 
-Este documento descreve a implementação atual de Ingestion / Document Intelligence. A responsabilidade desta camada termina na produção de texto limpo, segmentado por página e rastreável para as etapas seguintes.
+Este documento descreve o protótipo integrado de ingestão, extração e comparação. A ingestão produz texto limpo, segmentado por página e rastreável. O agente de extração chama a API Gemini GenerateContent ou OpenAI Chat Completions em lotes, valida saídas Pydantic e verifica citações. A comparação usa regras determinísticas; o app apresenta as diferenças e as fontes.
 
 ## Fluxo atual
 
@@ -18,6 +18,14 @@ TextCleaner
 Chunker
      ↓
 Document com provenance
+     ↓
+ExtractionAgent → PolicyExtraction (Pydantic + evidências)
+     ↓
+ComparisonEngine → ComparisonReport
+     ↓
+Adaptador Gemini/OpenAI → ExplanationAgent opcional
+     ↓
+SQLite opcional → consulta de histórico local
 ```
 
 O pipeline aceita PDFs, PNGs e JPEGs. A classificação utiliza exclusivamente o `media_type` declarado no `DocumentInput`.
@@ -129,7 +137,7 @@ Chunk.chunk_index
 Chunk.text
 ```
 
-Assim, cada trecho pode ser localizado no documento e na página original. O pipeline não interpreta semanticamente a apólice e não inventa valores ausentes.
+Assim, cada trecho pode ser localizado no documento e na página original. A extração exige citação literal validada contra o chunk. O comparador trata campos não encontrados como pendentes e não deduz ausência de cobertura.
 
 ## Exceções
 
@@ -148,13 +156,14 @@ Entradas incompatíveis, parsing inválido, extração e OCR não são convertid
 
 ## Tecnologias e dependências
 
-O código atual utiliza Python, Pydantic, pypdf, Pillow, PyMuPDF, pytesseract, Tesseract, pytest e Streamlit para a tela inicial. Não há integração atual com LLM, banco de dados, comparação de apólices ou upload na interface.
+O código atual utiliza Python, Pydantic, pypdf, Pillow, PyMuPDF, pytesseract, Tesseract, pytest, Streamlit e SQLite da biblioteca padrão. Os adaptadores usam Gemini GenerateContent REST ou OpenAI Chat Completions; provedor, chave e modelo são fornecidos no app ou por variáveis de ambiente. O usuário confirma autorização para enviar o texto à API. O histórico local SQLite é opcional e desligado por padrão; guarda extrações, citações e relatórios, mas não os PDFs originais.
 
 O alias `fitz` utilizado pelo PyMuPDF emite uma advertência de depreciação em versões recentes, mas não apresentou impacto funcional durante a validação. A migração para `pymupdf` é uma manutenção futura separada.
 
 ## Limitações conhecidas
 
-- a interface Streamlit ainda é informativa e não executa upload ou processamento;
-- a extração estruturada, comparação e persistência serão responsabilidade de etapas posteriores;
+- o histórico local contém dados extraídos derivados das apólices e exige proteção do dispositivo;
+- a extração e comparação precisam de validação com especialista e golden dataset;
+- os adaptadores enviam lotes de texto à API Gemini ou OpenAI e dependem de credencial, acesso de rede e modelo habilitado;
 - a homologação externa validou PDFs textuais reais, imagens reais derivadas de páginas reais e OCR rasterizado, mas não obteve um PDF público escaneado ou híbrido íntegro para validação empírica adicional;
 - testes de integração geram fixtures pequenas em runtime e não versionam apólices reais.

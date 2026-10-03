@@ -1,146 +1,118 @@
-# InsurMinds — D&O Policy Analyzer
+# InsurMinds — Plataforma de análise e comparação de apólices D&O
 
-Plataforma para análise e comparação de apólices D&O (Directors and Officers). A camada consolidada neste momento é o núcleo de ingestão e Document Intelligence, responsável por transformar PDFs e imagens em conteúdo textual estruturado, limpo, segmentado e rastreável.
+Protótipo académico para receber duas apólices em PDF/imagem, extrair campos D&O com um LLM, comparar resultados e apresentar diferenças com citações por página e chunk. A ingestão/OCR é local; o texto só é enviado ao provedor Gemini ou OpenAI selecionado após a pessoa confirmar autorização na interface.
 
-## Estado atual
+## Estado do MVP
 
-O pipeline documental está implementado e validado com testes unitários, testes de integração e documentos reais. Extração estruturada de campos D&O, comparação de apólices, persistência, integração com LLM e fluxo de análise na interface pertencem às etapas seguintes.
+O repositório contém ingestão/OCR, schema D&O validado, agente de extração com citações verificadas, comparação determinística, interface Streamlit e histórico local SQLite opcional. O salvamento está desligado por padrão. Campos não localizados não são tratados como ausência de cobertura e resultados ambíguos são sinalizados para revisão humana.
 
-## Pipeline atual
+## Integrantes
 
-```text
-PDF / Imagem
-      ↓
-Classificação
-      ↓
-Extração nativa / OCR
-      ↓
-Limpeza conservadora
-      ↓
-Páginas
-      ↓
-Chunks
-      ↓
-Proveniência
-      ↓
-Conteúdo utilizável
-```
-
-Para PDFs, a extração nativa é tentada primeiro. Se nenhuma página produzir texto útil, o documento original é enviado ao OCR. Imagens PNG e JPEG seguem diretamente para OCR. PDFs parcialmente textuais preservam o documento nativo completo; OCR seletivo por página não faz parte do comportamento atual.
-
-## Capacidades implementadas
-
-- contratos validados com Pydantic v2;
-- classificação de `application/pdf`, `image/png` e `image/jpeg`;
-- extração nativa de PDF por página;
-- fallback de PDF sem texto útil para OCR;
-- OCR local de PNG, JPEG e PDF rasterizado;
-- limpeza estrutural conservadora;
-- preservação da numeração e ordem das páginas;
-- chunking determinístico sem overlap;
-- rastreabilidade por `document_id`, `page_number` e `chunk_index`;
-- tratamento tipado de erros de entrada, PDF e OCR;
-- testes unitários e de integração;
-- validação externa com PDFs públicos reais e imagens derivadas de páginas reais.
-
-## Rastreabilidade
-
-Cada processamento gera um `Document` com `document_id` UUID. Cada `Page` preserva o número da página de origem e o método de extração. Cada `Chunk` referencia o documento, a página, sua posição e o texto correspondente.
-
-```text
-Document.document_id
-        ↓
-Page.page_number
-        ↓
-Chunk.chunk_index + Chunk.text
-```
-
-Essa relação permite que as etapas posteriores associem qualquer informação extraída à localização original na apólice.
-
-## Estrutura
-
-| Caminho | Responsabilidade |
-|---|---|
-| `app/` | Tela Streamlit inicial, ainda sem upload funcional |
-| `src/ingestion/` | Entrada, classificação, PDF, OCR, limpeza, chunking e pipeline |
-| `src/extraction/` | Espaço reservado para etapas futuras de extração estruturada |
-| `src/comparison/` | Espaço reservado para comparação futura |
-| `src/database/` | Espaço reservado para persistência futura |
-| `src/utils/` | Utilitários do projeto |
-| `tests/ingestion/` | Testes unitários do pipeline documental |
-| `tests/integration/` | Testes integrados com documentos gerados em runtime |
-| `data/samples/` | Orientações para dados de exemplo locais |
-| `docs/` | Arquitetura e responsabilidades |
-| `Projeto_Final_Artefatos/` | Artefatos do projeto final |
+- Jheniffer Guimarães — IA, agentes e comparação.
+- Demais integrantes — nomes e frentes de trabalho a preencher pelo grupo antes da entrega.
 
 ## Tecnologias
 
-- Python;
+- Python 3.11 ou 3.12;
 - Streamlit;
 - Pydantic v2;
-- pypdf;
-- Pillow;
-- PyMuPDF;
-- pytesseract;
-- Tesseract OCR;
+- pypdf, Pillow e PyMuPDF;
+- pytesseract e Tesseract OCR;
+- API Gemini GenerateContent (ou OpenAI Chat Completions) para extração estruturada e explicação opcional;
 - pytest.
 
-## Preparação local
+## Instalação
 
 ```bash
-python -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-No Windows, ative o ambiente com `.venv\\Scripts\\activate`.
+Instale também o Tesseract OCR e o pacote de idioma português. Em macOS:
 
-### OCR local
+```bash
+brew install tesseract tesseract-lang
+```
 
-O OCR utiliza Pillow, PyMuPDF, `pytesseract` e o executável Tesseract. Instale também o Tesseract e os dados de idioma necessários no sistema. Em Debian/Ubuntu:
+Em Debian/Ubuntu:
 
 ```bash
 sudo apt install tesseract-ocr tesseract-ocr-por
 ```
 
-O processamento é local e não usa APIs externas. O idioma padrão do adaptador é `por`; para validar a instalação:
+## Configuração e execução
+
+Copie `.env.example` para `.env`, informe uma chave Gemini do Google AI Studio e um modelo habilitado na sua conta. Carregue as variáveis e inicie a interface:
 
 ```bash
-tesseract --version
-tesseract --list-langs
+cp .env.example .env
 ```
 
-Se o executável ou os dados de idioma não estiverem disponíveis, o pipeline falha explicitamente com `OCRProcessingError`.
+Abra `.env` e preencha `LLM_API_KEY` e `LLM_MODEL` (por padrão, `gemini-3.8-flash`). `LLM_PROVIDER` aceita `Gemini` ou `OpenAI`. Depois:
 
-## Testes
+```bash
+set -a
+source .env
+set +a
+python -m streamlit run app/main.py
+```
+
+Também é possível selecionar o provedor e informar chave e modelo na barra lateral do app. A interface pede confirmação de autorização antes de enviar o texto das apólices ao provedor escolhido. Não use documentos confidenciais sem autorização para processamento externo.
+
+## Fluxo de demonstração
+
+1. Selecione exatamente dois PDFs, PNGs ou JPEGs.
+2. Confirme que o envio do texto à API está autorizado.
+3. Inicie a análise. A ingestão extrai texto/OCR; o agente estrutura os campos em lotes, valida o schema e verifica as citações.
+4. Consulte a tabela comparativa, as evidências por apólice e os dados estruturados.
+5. Opcionalmente, solicite uma explicação por IA baseada apenas no relatório estruturado.
+6. Baixe a tabela comparativa em CSV.
+
+O app não persiste os ficheiros enviados. Se a opção de histórico local for selecionada, os dados estruturados, citações e comparação são gravados no SQLite definido por `DATABASE_PATH` (por padrão `data/insurminds.sqlite3`). A comparação é apoio à análise e não determina qual apólice é melhor. O banco contém dados derivados das apólices; proteja o dispositivo e remova o arquivo quando não for mais necessário.
+
+## Testes e validação
 
 ```bash
 python -m pytest -q
-python -m pytest tests/ingestion -q
-python -m pytest tests/integration -q
 python -m compileall src tests
 python -m pip check
 ```
 
-No ambiente validado, a suíte apresentou `109 passed, 1 skipped`. O skip corresponde ao teste negativo de ausência do Tesseract enquanto o executável está disponível. Os testes de integração usam documentos pequenos gerados em runtime e não versionam apólices reais.
+## Estrutura
+
+| Caminho | Responsabilidade |
+|---|---|
+| `app/` | Interface Streamlit e apresentação das diferenças |
+| `src/ingestion/` | Receção, PDF, OCR, limpeza e chunks com proveniência |
+| `src/extraction/` | Contrato D&O, agente LLM, normalização e explicação |
+| `src/llm/` | Adaptadores REST nativo Gemini e OpenAI Chat Completions |
+| `src/comparison/` | Comparação determinística e relatório estruturado |
+| `src/database/` | Histórico SQLite local e consulta de análises guardadas |
+| `tests/` | Testes do pipeline documental e das etapas de IA/comparação |
+| `data/samples/` | Orientações para dados sintéticos/anonimizados |
+| `data/do/` | Materiais de trabalho locais, ignorados pelo Git |
+| `docs/` | Arquitetura, responsabilidades e notas da implementação |
+| `Projeto_Final_Artefatos/` | Relatório, pitch deck, vídeo e materiais auxiliares |
 
 ## Limitações conhecidas
 
-- a interface Streamlit ainda não possui upload nem processamento integrado;
-- extração estruturada, comparação, persistência e LLM ainda estão fora deste escopo;
-- a homologação externa não conseguiu obter uma amostra pública íntegra de PDF digitalizado para comprovar empiricamente o fallback automático;
-- a homologação externa também não obteve um PDF híbrido público íntegro;
-- o alias `fitz` usado pelo PyMuPDF emite uma advertência de depreciação, sem impacto funcional observado; a substituição futura por `pymupdf` é uma tarefa de manutenção.
+- a extração generativa pode errar; cada valor deve ser verificado nas evidências e por especialista;
+- a taxonomia inicial cobre um conjunto limitado de sinónimos e cláusulas;
+- PDFs com muitas páginas exigem várias chamadas e podem aumentar custo/tempo;
+- o histórico SQLite é local, opcional e não inclui os PDFs originais;
+- franquias percentuais sem base de cálculo equivalente e franquias mistas ficam para revisão;
+- a avaliação com golden dataset e métricas de precisão/recall/F1 ainda precisa ser concluída;
+- o nome dos demais integrantes, relatório técnico, pitch deck e vídeo ainda precisam ser acrescentados pelo grupo.
 
-## Dados e credenciais
-
-O repositório é público. Não inclua apólices reais, dados pessoais ou credenciais. Arquivos locais de dados, `.env` e ambientes virtuais são ignorados pelo Git. O `.env.example` é mantido para etapas futuras e não é lido pelo pipeline atual.
-
-## Documentação
+## Documentação e entregáveis
 
 - [Arquitetura](docs/arquitetura.md)
 - [Responsabilidades](docs/responsabilidades.md)
+- [IA, agentes e comparação](docs/ia-agentes-automacao/README.md)
+- Link do repositório: <https://github.com/jhenifferg/insurminds-do-policy-analyzer>
+- Licença: [MIT](LICENSE)
 
-## Licença
+## Segurança dos dados
 
-Código disponibilizado sob a licença [MIT](LICENSE).
+A pasta `data/do/` e o ficheiro `.env` são ignorados pelo Git. Use apólices públicas, sintéticas ou autorizadas. Remova qualquer chave, dado pessoal ou documento confidencial antes de publicar artefactos.
