@@ -67,7 +67,9 @@ def _ingest_and_extract(name: str, media_type: str, content: bytes, config):
     )
     t1 = time.perf_counter()
     client = make_client(config)
-    policy = ExtractionAgent(client, max_workers=3).extract(document)
+    # Contas gratuitas têm limites de requisições e tokens por minuto. Uma
+    # chamada por vez evita respostas intermitentes sem alterar a proveniência.
+    policy = ExtractionAgent(client, max_workers=1).extract(document)
     t2 = time.perf_counter()
     return policy, t1 - t0, t2 - t1, getattr(client, "retries", 0)
 
@@ -91,7 +93,9 @@ def _run(uploads, config, save_history: bool) -> bool:
 
             policies = [None] * len(items)
             pending = {}
-            with ThreadPoolExecutor(max_workers=len(items)) as pool:
+            # Serializar A/B evita chamadas simultâneas e reduz 429/503 em
+            # contas gratuitas, sem alterar a ordem ou a proveniência.
+            with ThreadPoolExecutor(max_workers=1) as pool:
                 for index, (name, media_type, content, key) in enumerate(items):
                     label = "AB"[index]
                     if key in cache:

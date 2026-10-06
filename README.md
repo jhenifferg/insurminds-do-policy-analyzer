@@ -105,6 +105,7 @@ O teste de OCR real depende do executável Tesseract e do idioma português inst
 - a extração generativa pode errar; cada valor deve ser verificado nas evidências e por especialista;
 - a taxonomia inicial cobre um conjunto limitado de sinónimos e cláusulas;
 - PDFs com muitas páginas exigem várias chamadas e podem aumentar custo/tempo;
+- as apólices longas são divididas em lotes de até 16 chunks e processadas sequencialmente para caber nos limites de entrada e requisições dos provedores gratuitos;
 - o histórico SQLite é local, opcional e não inclui os PDFs originais;
 - franquias percentuais sem base de cálculo equivalente e franquias mistas ficam para revisão;
 - a avaliação com golden dataset e métricas de precisão/recall/F1 ainda precisa ser concluída;
