@@ -4,4 +4,4 @@
 - `InsurMinds_Projeto_Final.pptx`: apresentação editável do projeto.
 - `Roteiro_Video.md`: roteiro e checklist para gravar a demonstração final.
 
-O vídeo demonstrativo ainda precisa ser gravado após executar a aplicação com uma chave de API configurada e validar o fluxo ao vivo.
+O roteiro deve ser usado para a gravação da demonstração final. A aplicação deve ser executada com uma chave configurada e o fluxo deve ser demonstrado somente com resultados efetivamente validados.

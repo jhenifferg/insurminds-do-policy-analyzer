@@ -4,6 +4,11 @@ __pycache__/
 .venv/
 venv/
 .pytest_cache/
+.mypy_cache/
+.pyright/
+.ruff_cache/
+.tox/
+.nox/
 .coverage
 htmlcov/
 build/
@@ -16,6 +21,8 @@ dist/
 .streamlit/secrets.toml
 *.pem
 *.key
+*.secret
+*.secrets
 # Local documents and generated data
 data/*
 !data/samples/
@@ -27,6 +34,16 @@ data/do/
 *.db
 *.sqlite*
 *.log
+# Browser/test artifacts
+playwright-report/
+test-results/
+screenshots/
+*.har
+# Temporary/editor files
+*.tmp
+*.temp
+*.swp
+*.swo
 # OS/editor
 .DS_Store
 .idea/

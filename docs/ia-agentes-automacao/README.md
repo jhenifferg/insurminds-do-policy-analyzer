@@ -28,6 +28,7 @@ ExplanationAgent (explicação opcional, sem ranking)
 - `src/comparison/models.py`: saída estruturada com diferenças, valores, explicação factual e evidências.
 - `src/extraction/explainer.py`: fronteira opcional para explicar o relatório. O prompt limita a explicação aos factos comparados e proíbe declarar uma apólice como “melhor”.
 - `src/llm/gemini_client.py`: adaptador REST Gemini GenerateContent nativo, sem SDK adicional.
+- `src/llm/groq_client.py`: adaptador Groq Chat Completions, sem SDK adicional.
 - `src/llm/openai_client.py`: adaptador OpenAI Chat Completions, sem SDK adicional.
 - `src/database/repository.py`: histórico SQLite local opcional, com leitura e gravação de extrações/relatórios.
 
@@ -37,7 +38,7 @@ ExplanationAgent (explicação opcional, sem ranking)
 
 ## Ligação de um fornecedor LLM
 
-Ambos os adaptadores implementam `complete_json(system_prompt=..., user_prompt=...)` e `complete_text(...)`. Gemini usa o endpoint REST nativo `generateContent`; OpenAI usa Chat Completions. A chave, o provedor e o modelo são fornecidos pelo ambiente ou pela barra lateral do app. A interface exige confirmação antes de cada nova análise. Não envie apólices reais ou dados pessoais para um serviço externo sem autorização da equipa.
+Os adaptadores implementam `complete_json(system_prompt=..., user_prompt=...)` e `complete_text(...)`. Gemini usa o endpoint REST nativo `generateContent`; Groq e OpenAI usam Chat Completions compatível. Gemini é o provider primário e Groq pode ser ativado como fallback. A chave, o provedor e o modelo são fornecidos pelo ambiente; a interface final exibe apenas o status do modelo. A interface exige confirmação antes de cada nova análise. Não envie apólices reais ou dados pessoais para um serviço externo sem autorização da equipa.
 
 Exemplo de composição no código:
 

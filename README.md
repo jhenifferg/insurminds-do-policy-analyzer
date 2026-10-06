@@ -1,6 +1,6 @@
 # InsurMinds — Plataforma de análise e comparação de apólices D&O
 
-Protótipo académico para receber duas apólices em PDF/imagem, extrair campos D&O com um LLM, comparar resultados e apresentar diferenças com citações por página e chunk. A ingestão/OCR é local; o texto só é enviado ao provedor Gemini ou OpenAI selecionado após a pessoa confirmar autorização na interface.
+Protótipo académico para receber duas apólices em PDF/imagem, extrair campos D&O com um LLM, comparar resultados e apresentar diferenças com citações por página e chunk. A ingestão/OCR é local; o texto só é enviado ao provedor Gemini, Groq ou OpenAI selecionado após a pessoa confirmar autorização na interface.
 
 ## Estado do MVP
 
@@ -9,6 +9,7 @@ O repositório contém ingestão/OCR, schema D&O validado, agente de extração 
 ## Integrantes
 
 - Jheniffer Guimarães — IA, agentes e comparação.
+- Matheus Neves — IA, dados e desenvolvimento.
 - Demais integrantes — nomes e frentes de trabalho a preencher pelo grupo antes da entrega.
 
 ## Tecnologias
@@ -18,7 +19,7 @@ O repositório contém ingestão/OCR, schema D&O validado, agente de extração 
 - Pydantic v2;
 - pypdf, Pillow e PyMuPDF;
 - pytesseract e Tesseract OCR;
-- API Gemini GenerateContent (ou OpenAI Chat Completions) para extração estruturada e explicação opcional;
+- API Gemini GenerateContent como provider primário, Groq como fallback automático e OpenAI como opção manual;
 - pytest.
 
 ## Instalação
@@ -43,13 +44,13 @@ sudo apt install tesseract-ocr tesseract-ocr-por
 
 ## Configuração e execução
 
-Copie `.env.example` para `.env`, informe uma chave Gemini do Google AI Studio e um modelo habilitado na sua conta. Carregue as variáveis e inicie a interface:
+Copie `.env.example` para `.env`. O padrão e a primeira opção da aplicação são Gemini; Groq é usado automaticamente como fallback quando `GROQ_API_KEY` está configurada:
 
 ```bash
 cp .env.example .env
 ```
 
-Abra `.env` e preencha `LLM_API_KEY` e `LLM_MODEL` (por padrão, `gemini-3.8-flash`). `LLM_PROVIDER` aceita `Gemini` ou `OpenAI`. Depois:
+Abra `.env` e configure `GEMINI_API_KEY`/`GEMINI_MODEL`. Para o fallback, configure `GROQ_API_KEY`/`GROQ_MODEL`. As variáveis genéricas `LLM_API_KEY`/`LLM_MODEL` continuam aceitas por compatibilidade. `LLM_PROVIDER` aceita `Gemini`, `Groq` ou `OpenAI`; a opção OpenAI usa `OPENAI_API_KEY`/`OPENAI_MODEL`. Depois:
 
 ```bash
 set -a
@@ -58,7 +59,9 @@ set +a
 python -m streamlit run app/main.py
 ```
 
-Também é possível selecionar o provedor e informar chave e modelo na barra lateral do app. A interface pede confirmação de autorização antes de enviar o texto das apólices ao provedor escolhido. Não use documentos confidenciais sem autorização para processamento externo.
+O modelo de referência usado na validação foi `gemini-3.1-flash-lite`, com `openai/gpt-oss-20b` como fallback Groq. Os nomes podem ser trocados por modelos disponíveis na conta configurada.
+
+A interface usa o provider, a chave e o modelo definidos no `.env`; esses controles não são exibidos ao usuário final. A interface pede confirmação de autorização antes de enviar o texto das apólices ao provider escolhido. Não use documentos confidenciais sem autorização para processamento externo.
 
 ## Fluxo de demonstração
 
@@ -74,10 +77,12 @@ O app não persiste os ficheiros enviados. Se a opção de histórico local for 
 ## Testes e validação
 
 ```bash
-python -m pytest -q
+PATH="$PWD/.venv/bin:$PATH" python -m pytest -q
 python -m compileall src tests
 python -m pip check
 ```
+
+O teste de OCR real depende do executável Tesseract e do idioma português instalados no sistema. A suíte não faz chamadas reais a APIs de LLM: os adaptadores são testados com respostas simuladas; a validação real de duas apólices deve ser executada manualmente com documentos autorizados.
 
 ## Estrutura
 
@@ -86,7 +91,7 @@ python -m pip check
 | `app/` | Interface Streamlit e apresentação das diferenças |
 | `src/ingestion/` | Receção, PDF, OCR, limpeza e chunks com proveniência |
 | `src/extraction/` | Contrato D&O, agente LLM, normalização e explicação |
-| `src/llm/` | Adaptadores REST nativo Gemini e OpenAI Chat Completions |
+| `src/llm/` | Adaptadores REST nativos Gemini, Groq e OpenAI Chat Completions, com fallback |
 | `src/comparison/` | Comparação determinística e relatório estruturado |
 | `src/database/` | Histórico SQLite local e consulta de análises guardadas |
 | `tests/` | Testes do pipeline documental e das etapas de IA/comparação |
@@ -103,7 +108,7 @@ python -m pip check
 - o histórico SQLite é local, opcional e não inclui os PDFs originais;
 - franquias percentuais sem base de cálculo equivalente e franquias mistas ficam para revisão;
 - a avaliação com golden dataset e métricas de precisão/recall/F1 ainda precisa ser concluída;
-- o nome dos demais integrantes, relatório técnico, pitch deck e vídeo ainda precisam ser acrescentados pelo grupo.
+- os artefatos audiovisuais devem ser conferidos separadamente antes da entrega final;
 
 ## Documentação e entregáveis
 

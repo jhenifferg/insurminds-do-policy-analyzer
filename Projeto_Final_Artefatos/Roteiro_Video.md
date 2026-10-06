@@ -2,7 +2,7 @@
 
 **Duração prevista:** 4 min 40 s. **Ficheiro final:** `InsurMinds_Projeto_Final.mp4`.
 
-O roteiro evita afirmar métricas ainda não avaliadas. Grave a demonstração depois de configurar um modelo Gemini ou OpenAI habilitado e verificar que os dois documentos escolhidos podem ser enviados para processamento externo.
+O roteiro evita afirmar métricas ainda não avaliadas. A demonstração deve usar Gemini como provider primário, com Groq como fallback, e dois documentos autorizados para processamento externo.
 
 | Tempo | Ecrã e fala |
 |---|---|

@@ -95,10 +95,12 @@ class ExtractionAgent:
         batch_prompt = self._source_prompt(document, batch)
         for attempt in range(2):
             correction = (
-                "\nYour previous citations failed exact source validation. "
-                "Re-read only the provided chunks and return the full JSON again. "
-                "Every quote must be copied exactly from its cited chunk; do not "
-                "paraphrase, normalize, or reconstruct text."
+                "\nYour previous response was rejected. Re-read only the provided "
+                "chunks and return the complete JSON object again, including every "
+                "top-level field from the supplied schema. Use status not_found "
+                "with value null and an empty evidence list when the source does "
+                "not establish a field. Every quote must be copied exactly from "
+                "its cited chunk; do not paraphrase, normalize, or reconstruct text."
                 if attempt
                 else ""
             )
@@ -112,6 +114,8 @@ class ExtractionAgent:
                 payload = _repair_found_without_evidence(payload)
                 result = PolicyExtraction.model_validate(payload)
             except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
+                if attempt == 0:
+                    continue
                 raise ExtractionError(f"LLM response failed schema validation: {exc}") from exc
 
             if result.document_id != str(document.document_id):

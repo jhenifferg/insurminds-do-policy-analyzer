@@ -21,6 +21,7 @@ class OpenAIChatClient:
         *,
         base_url: str = "https://api.openai.com/v1",
         timeout_seconds: int = 120,
+        max_tokens: int | None = None,
     ) -> None:
         if not api_key.strip():
             raise ValueError("API key is required")
@@ -30,6 +31,7 @@ class OpenAIChatClient:
         self.model = model.strip()
         self.endpoint = base_url.rstrip("/") + "/chat/completions"
         self.timeout_seconds = timeout_seconds
+        self.max_tokens = max_tokens
 
     def complete_json(self, *, system_prompt: str, user_prompt: str) -> str:
         result = self._complete(system_prompt, user_prompt, json_mode=True)
@@ -53,12 +55,15 @@ class OpenAIChatClient:
         }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
+        if self.max_tokens is not None:
+            payload["max_tokens"] = self.max_tokens
         request = Request(
             self.endpoint,
             data=json.dumps(payload).encode("utf-8"),
             headers={
                 "Authorization": f"Bearer {self.api_key}",
                 "Content-Type": "application/json",
+                "User-Agent": "InsurMinds/1.0",
             },
             method="POST",
         )
@@ -80,6 +85,8 @@ class OpenAIChatClient:
                         message += " Try another available model or try again later."
                 else:
                     message = f"Model provider API returned HTTP {exc.code}"
+                    if error_detail:
+                        message += f": {error_detail}"
                 raise OpenAIRequestError(message) from exc
             except (URLError, TimeoutError, OSError) as exc:
                 raise OpenAIRequestError("Could not connect to the model provider API") from exc

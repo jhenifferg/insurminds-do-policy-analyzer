@@ -1,6 +1,6 @@
 # Arquitetura de ingestão, extração e comparação
 
-Este documento descreve o protótipo integrado de ingestão, extração e comparação. A ingestão produz texto limpo, segmentado por página e rastreável. O agente de extração chama a API Gemini GenerateContent ou OpenAI Chat Completions em lotes, valida saídas Pydantic e verifica citações. A comparação usa regras determinísticas; o app apresenta as diferenças e as fontes.
+Este documento descreve o protótipo integrado de ingestão, extração e comparação. A ingestão produz texto limpo, segmentado por página e rastreável. O agente de extração chama a API Gemini GenerateContent em lotes, usa Groq como fallback opcional e mantém OpenAI como provider manual, valida saídas Pydantic e verifica citações. A comparação usa regras determinísticas; o app apresenta as diferenças e as fontes.
 
 ## Fluxo atual
 
@@ -23,7 +23,7 @@ ExtractionAgent → PolicyExtraction (Pydantic + evidências)
      ↓
 ComparisonEngine → ComparisonReport
      ↓
-Adaptador Gemini/OpenAI → ExplanationAgent opcional
+Adaptador Gemini/Groq/OpenAI → ExplanationAgent opcional
      ↓
 SQLite opcional → consulta de histórico local
 ```
@@ -156,7 +156,7 @@ Entradas incompatíveis, parsing inválido, extração e OCR não são convertid
 
 ## Tecnologias e dependências
 
-O código atual utiliza Python, Pydantic, pypdf, Pillow, PyMuPDF, pytesseract, Tesseract, pytest, Streamlit e SQLite da biblioteca padrão. Os adaptadores usam Gemini GenerateContent REST ou OpenAI Chat Completions; provedor, chave e modelo são fornecidos no app ou por variáveis de ambiente. O usuário confirma autorização para enviar o texto à API. O histórico local SQLite é opcional e desligado por padrão; guarda extrações, citações e relatórios, mas não os PDFs originais.
+O código atual utiliza Python, Pydantic, pypdf, Pillow, PyMuPDF, pytesseract, Tesseract, pytest, Streamlit e SQLite da biblioteca padrão. Os adaptadores usam Gemini GenerateContent REST, Groq/OpenAI Chat Completions e fallback entre providers; provedor, chave e modelo são fornecidos por variáveis de ambiente e não são editáveis pela interface final. O usuário confirma autorização para enviar o texto à API. O histórico local SQLite é opcional e desligado por padrão; guarda extrações, citações e relatórios, mas não os PDFs originais.
 
 O alias `fitz` utilizado pelo PyMuPDF emite uma advertência de depreciação em versões recentes, mas não apresentou impacto funcional durante a validação. A migração para `pymupdf` é uma manutenção futura separada.
 
@@ -164,6 +164,6 @@ O alias `fitz` utilizado pelo PyMuPDF emite uma advertência de depreciação em
 
 - o histórico local contém dados extraídos derivados das apólices e exige proteção do dispositivo;
 - a extração e comparação precisam de validação com especialista e golden dataset;
-- os adaptadores enviam lotes de texto à API Gemini ou OpenAI e dependem de credencial, acesso de rede e modelo habilitado;
+- os adaptadores enviam lotes de texto às APIs Gemini, Groq ou OpenAI e dependem de credencial, acesso de rede e modelo habilitado;
 - a homologação externa validou PDFs textuais reais, imagens reais derivadas de páginas reais e OCR rasterizado, mas não obteve um PDF público escaneado ou híbrido íntegro para validação empírica adicional;
 - testes de integração geram fixtures pequenas em runtime e não versionam apólices reais.
