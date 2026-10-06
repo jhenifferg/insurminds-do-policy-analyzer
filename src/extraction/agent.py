@@ -2,6 +2,7 @@
 
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor
 from typing import Protocol, Sequence
 
 from pydantic import ValidationError
@@ -43,6 +44,9 @@ not_found or not_applicable list fields.
 Extract every coverage explicitly introduced by a heading such as "Cobertura A"
 or "Cobertura B" in the supplied source. Do not skip a heading when its clause
 continues on the next line or chunk; cite the exact text that establishes it.
+For list fields (lmi_sublimits, deductibles, coverages, exclusions, extensions),
+also copy into the field-level "evidence" array the citations that support the
+listed items; a found field must never have an empty field-level evidence array.
 Preserve currency, units, dates, conditions, sublimits, percentage calculation
 bases and temporal triggers.
 Keep each citation short (roughly 5–20 words), copy it exactly from one source
@@ -57,57 +61,74 @@ class ExtractionAgent:
 
     BATCH_SIZE = 8
 
-    def __init__(self, llm: JsonLLM, batch_size: int = BATCH_SIZE) -> None:
+    def __init__(
+        self, llm: JsonLLM, batch_size: int = BATCH_SIZE, max_workers: int = 1
+    ) -> None:
         if batch_size < 1:
             raise ValueError("batch_size must be positive")
         self.llm = llm
         self.batch_size = batch_size
+        # Lotes são independentes: com max_workers > 1 as chamadas ao LLM rodam em paralelo.
+        self.max_workers = max(1, max_workers)
 
     def extract(self, document: Document) -> PolicyExtraction:
         chunks = [chunk for page in document.pages for chunk in page.chunks]
         if not chunks:
             raise ExtractionError("document has no readable text chunks")
-        partial_results = []
-        for start in range(0, len(chunks), self.batch_size):
-            batch_prompt = self._source_prompt(document, chunks[start : start + self.batch_size])
-            for attempt in range(2):
-                correction = (
-                    "\nYour previous citations failed exact source validation. "
-                    "Re-read only the provided chunks and return the full JSON again. "
-                    "Every quote must be copied exactly from its cited chunk; do not "
-                    "paraphrase, normalize, or reconstruct text."
-                    if attempt
-                    else ""
+        batches = [
+            chunks[start : start + self.batch_size]
+            for start in range(0, len(chunks), self.batch_size)
+        ]
+        if self.max_workers > 1 and len(batches) > 1:
+            with ThreadPoolExecutor(max_workers=min(self.max_workers, len(batches))) as pool:
+                partial_results = list(
+                    pool.map(lambda batch: self._extract_batch(document, batch), batches)
                 )
-                try:
-                    raw = self.llm.complete_json(
-                        system_prompt=SYSTEM_PROMPT + correction,
-                        user_prompt=batch_prompt,
-                    )
-                    payload = json.loads(raw) if isinstance(raw, str) else raw
-                    payload = _normalize_empty_non_found_values(payload)
-                    result = PolicyExtraction.model_validate(payload)
-                except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
-                    raise ExtractionError(f"LLM response failed schema validation: {exc}") from exc
-
-                if result.document_id != str(document.document_id):
-                    raise ExtractionError("LLM response references a different document")
-                if result.filename != document.filename:
-                    raise ExtractionError("LLM response references a different filename")
-                try:
-                    self._repair_evidence(result, document)
-                    self._validate_evidence(result, document)
-                except ExtractionError:
-                    if attempt == 0:
-                        continue
-                    raise ExtractionError(
-                        "The model returned evidence citations that could not be matched to the source text"
-                    )
-                partial_results.append(result)
-                break
+        else:
+            partial_results = [self._extract_batch(document, batch) for batch in batches]
 
         combined = _merge_partial_results(document, partial_results)
         return ClauseNormalizer().normalize(combined)
+
+    def _extract_batch(self, document: Document, batch: Sequence) -> PolicyExtraction:
+        """Extrai e valida um lote de trechos (com uma nova tentativa se as citações falharem)."""
+        batch_prompt = self._source_prompt(document, batch)
+        for attempt in range(2):
+            correction = (
+                "\nYour previous citations failed exact source validation. "
+                "Re-read only the provided chunks and return the full JSON again. "
+                "Every quote must be copied exactly from its cited chunk; do not "
+                "paraphrase, normalize, or reconstruct text."
+                if attempt
+                else ""
+            )
+            try:
+                raw = self.llm.complete_json(
+                    system_prompt=SYSTEM_PROMPT + correction,
+                    user_prompt=batch_prompt,
+                )
+                payload = json.loads(raw) if isinstance(raw, str) else raw
+                payload = _normalize_empty_non_found_values(payload)
+                payload = _repair_found_without_evidence(payload)
+                result = PolicyExtraction.model_validate(payload)
+            except (json.JSONDecodeError, ValidationError, TypeError, ValueError) as exc:
+                raise ExtractionError(f"LLM response failed schema validation: {exc}") from exc
+
+            if result.document_id != str(document.document_id):
+                raise ExtractionError("LLM response references a different document")
+            if result.filename != document.filename:
+                raise ExtractionError("LLM response references a different filename")
+            try:
+                self._repair_evidence(result, document)
+                self._validate_evidence(result, document)
+            except ExtractionError:
+                if attempt == 0:
+                    continue
+                raise ExtractionError(
+                    "The model returned evidence citations that could not be matched to the source text"
+                )
+            return result
+        raise ExtractionError("extraction failed")  # pragma: no cover
 
     @staticmethod
     def _source_prompt(document: Document, source_chunks: Sequence) -> str:
@@ -211,6 +232,33 @@ def _normalize_empty_non_found_values(payload):
     if normalized.get("status") != "found" and normalized.get("value") == []:
         normalized["value"] = None
     return normalized
+
+
+def _repair_found_without_evidence(payload):
+    """Complete field-level evidence the model left empty, without inventing any.
+
+    Lists of findings carry their own citations, so those are lifted to the field.
+    A "found" field that still has no citation is downgraded to not_found (and
+    flagged for human review) instead of failing the whole analysis.
+    """
+    if not isinstance(payload, dict):
+        return payload
+    for name, field in payload.items():
+        if not isinstance(field, dict) or field.get("status") != "found" or field.get("evidence"):
+            continue
+        collected = []
+        items = field.get("value")
+        if isinstance(items, list):
+            for item in items:
+                if isinstance(item, dict) and isinstance(item.get("evidence"), list):
+                    collected.extend(item["evidence"])
+        if collected:
+            field["evidence"] = collected
+        else:
+            field["status"] = "not_found"
+            field["value"] = None
+            field["note"] = "O modelo não citou evidência para este campo; requer revisão."
+    return payload
 
 
 _VALUE_FIELDS = tuple(
